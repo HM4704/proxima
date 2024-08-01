@@ -56,6 +56,9 @@ if [ ! -f "$INITIALIZED_FILE" ]; then
     touch "$INITIALIZED_FILE"
 fi
 
-./proxima
+./proxima &
 
-
+# do not let the script end
+while true; do
+    sleep 1
+done
