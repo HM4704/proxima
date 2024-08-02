@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +24,7 @@ import (
 type (
 	Environment interface {
 		global.Logging
+		StateStore() global.StateStore
 		GetNodeInfo() *global.NodeInfo
 		GetSyncInfo() *api.SyncInfo
 		GetPeersInfo() *api.PeersInfo
@@ -63,6 +65,10 @@ func (srv *Server) registerHandlers() {
 	http.HandleFunc(api.PathQueryTxStatus, srv.queryTxStatus)
 	// GET request format: '/query_inclusion_score?txid=<hex-encoded transaction ID>&threshold=N-D[&slots=<slot span>]'
 	http.HandleFunc(api.PathQueryInclusionScore, srv.queryTxInclusionScore)
+	// GET request format: '/query_root_records?&slots=<slot span>'
+	http.HandleFunc(api.PathQueryRootRecords, srv.getRootRecords)
+	// GET request format: '/query_branch_data?&slots=<slot span>'
+	http.HandleFunc(api.PathQueryBranchData, srv.getBranchData)
 	// POST request format '/submit_nowait'. Feedback only on parsing error, otherwise async posting
 	http.HandleFunc(api.PathSubmitTransaction, srv.submitTx)
 	// GET sync info from the node
@@ -157,6 +163,96 @@ func (srv *Server) getChainOutput(w http.ResponseWriter, r *http.Request) {
 	resp := &api.ChainOutput{
 		OutputID:   out.ID.StringHex(),
 		OutputData: hex.EncodeToString(out.Output.Bytes()),
+	}
+
+	respBin, err := json.MarshalIndent(resp, "", "  ")
+	if err != nil {
+		writeErr(w, err.Error())
+		return
+	}
+	_, err = w.Write(respBin)
+	util.AssertNoError(err)
+}
+
+func (srv *Server) getRootRecords(w http.ResponseWriter, r *http.Request) {
+	srv.Tracef(TraceTag, "getRootRecords invoked")
+
+	var err error
+	slotSpan := 1
+	lst, ok := r.URL.Query()["slots"]
+	if ok && len(lst) == 1 {
+		slotSpan, err = strconv.Atoi(lst[0])
+
+		if slotSpan < 1 || slotSpan > maxSlotsSpan {
+			writeErr(w, fmt.Sprintf("parameter 'slots' must be between 1 and %d", maxSlotsSpan))
+			return
+		}
+	}
+
+	var rootRecords []multistate.RootRecord
+	err = util.CatchPanicOrError(func() error {
+		rootRecords = multistate.FetchRootRecordsNSlotsBack(srv.StateStore(), slotSpan)
+		return nil
+	})
+	if err != nil {
+		writeErr(w, err.Error())
+		return
+	}
+
+	resp := &api.QueryRootRecords{}
+	if len(rootRecords) > 0 {
+		resp.RootRecords = make([]multistate.RootRecordJSONAble, len(rootRecords))
+		for i, rr := range rootRecords {
+			resp.RootRecords[i] = *rr.JSONAble()
+		}
+	}
+
+	respBin, err := json.MarshalIndent(resp, "", "  ")
+	if err != nil {
+		writeErr(w, err.Error())
+		return
+	}
+	_, err = w.Write(respBin)
+	util.AssertNoError(err)
+}
+
+func (srv *Server) getBranchData(w http.ResponseWriter, r *http.Request) {
+	srv.Tracef(TraceTag, "getBranchData invoked")
+
+	var err error
+	slotSpan := 1
+	lst, ok := r.URL.Query()["slots"]
+	if ok && len(lst) == 1 {
+		slotSpan, err = strconv.Atoi(lst[0])
+
+		if slotSpan < 1 || slotSpan > maxSlotsSpan {
+			writeErr(w, fmt.Sprintf("parameter 'slots' must be between 1 and %d", maxSlotsSpan))
+			return
+		}
+	}
+
+	var branchData []*multistate.BranchData
+
+	err = util.CatchPanicOrError(func() error {
+		rootRecords := multistate.FetchRootRecordsNSlotsBack(srv.StateStore(), slotSpan)
+		branchData = multistate.FetchBranchDataMulti(srv.StateStore(), rootRecords...)
+
+		sort.Slice(branchData, func(i, j int) bool {
+			return branchData[i].Stem.Timestamp().After(branchData[j].Stem.Timestamp())
+		})
+		return nil
+	})
+	if err != nil {
+		writeErr(w, err.Error())
+		return
+	}
+
+	resp := &api.QueryBranchDataMulti{}
+	if len(branchData) > 0 {
+		resp.BranchData = make([]multistate.BranchDataJSONAble, len(branchData))
+		for i, rr := range branchData {
+			resp.BranchData[i] = *rr.JSONAble()
+		}
 	}
 
 	respBin, err := json.MarshalIndent(resp, "", "  ")

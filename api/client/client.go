@@ -431,6 +431,60 @@ func (c *APIClient) GetTransferableOutputs(account ledger.Accountable, maxOutput
 	return ret, sum, nil
 }
 
+func (c *APIClient) GetRootRecordsNSlotsBack(nBack int) ([]*multistate.RootRecord, error) {
+	path := fmt.Sprintf(api.PathQueryRootRecords+"?slots=%d", nBack)
+	body, err := c.getBody(path)
+	if err != nil {
+		return nil, err
+	}
+	var res api.QueryRootRecords
+	err = json.Unmarshal(body, &res)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal returned: %v\nbody: '%s'", err, string(body))
+	}
+	if res.Error.Error != "" {
+		return nil, fmt.Errorf("from server: %s", res.Error.Error)
+	}
+
+	ret := make([]*multistate.RootRecord, 0, len(res.RootRecords))
+	for _, recordJson := range res.RootRecords {
+		rr, err := recordJson.Parse()
+		if err != nil {
+			return nil, fmt.Errorf("error %s in parsing root record", err.Error())
+		}
+		ret = append(ret, rr)
+	}
+
+	return ret, nil
+}
+
+func (c *APIClient) GetBranchDataMulti(nBack int) ([]*multistate.BranchData, error) {
+	path := fmt.Sprintf(api.PathQueryBranchData+"?slots=%d", nBack)
+	body, err := c.getBody(path)
+	if err != nil {
+		return nil, err
+	}
+	var res api.QueryBranchDataMulti
+	err = json.Unmarshal(body, &res)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal returned: %v\nbody: '%s'", err, string(body))
+	}
+	if res.Error.Error != "" {
+		return nil, fmt.Errorf("from server: %s", res.Error.Error)
+	}
+
+	ret := make([]*multistate.BranchData, 0, len(res.BranchData))
+	for _, branchJson := range res.BranchData {
+		rr, err := branchJson.Parse()
+		if err != nil {
+			return nil, fmt.Errorf("error %s in parsing root record", err.Error())
+		}
+		ret = append(ret, rr)
+	}
+
+	return ret, nil
+}
+
 // MakeCompactTransaction requests server and creates a compact transaction for ED25519 outputs in the form of transaction context. Does not submit it
 func (c *APIClient) MakeCompactTransaction(walletPrivateKey ed25519.PrivateKey, tagAlongSeqID *ledger.ChainID, tagAlongFee uint64, maxInputs ...int) (*transaction.TxContext, error) {
 	walletAccount := ledger.AddressED25519FromPrivateKey(walletPrivateKey)

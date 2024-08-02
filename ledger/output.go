@@ -19,6 +19,11 @@ type (
 		Output *Output
 	}
 
+	OutputWithIDJSONAble struct {
+		ID string `json:"sequencer_id"`
+		//?? Todo Output *Output
+	}
+
 	OutputDataWithID struct {
 		ID         OutputID
 		OutputData []byte

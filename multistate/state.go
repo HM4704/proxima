@@ -60,6 +60,12 @@ type (
 		Stem            *ledger.OutputWithID
 		SequencerOutput *ledger.OutputWithID
 	}
+
+	BranchDataJSONAble struct {
+		RootRecordJSONAble `json:"root_record"`
+		Stem               *ledger.OutputWithIDJSONAble `json:"stem"`
+		SequencerOutput    *ledger.OutputWithIDJSONAble `json:"sequencer_output"`
+	}
 )
 
 // partitions of the state store on the trie

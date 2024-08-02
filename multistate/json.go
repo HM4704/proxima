@@ -38,3 +38,43 @@ func (r *RootRecordJSONAble) Parse() (*RootRecord, error) {
 	ret.LedgerCoverage = r.LedgerCoverage
 	return ret, nil
 }
+
+func (r *BranchData) JSONAble() *BranchDataJSONAble {
+	rr := r.RootRecord.JSONAble()
+
+	return &BranchDataJSONAble{
+		RootRecordJSONAble: *rr,
+		Stem: &ledger.OutputWithIDJSONAble{
+			ID: r.Stem.ID.StringHex(),
+		},
+		SequencerOutput: &ledger.OutputWithIDJSONAble{
+			ID: r.SequencerOutput.ID.StringHex(),
+		},
+	}
+}
+
+func (r *BranchDataJSONAble) Parse() (*BranchData, error) {
+	rr, err := r.RootRecordJSONAble.Parse()
+	if err != nil {
+		return nil, err
+	}
+	StemID, err := ledger.OutputIDFromHexString(r.Stem.ID)
+	if err != nil {
+		return nil, err
+	}
+	SequencerOutputID, err := ledger.OutputIDFromHexString(r.SequencerOutput.ID)
+	if err != nil {
+		return nil, err
+	}
+	ret := &BranchData{
+		RootRecord: *rr,
+		Stem: &ledger.OutputWithID{
+			ID: StemID,
+		},
+		SequencerOutput: &ledger.OutputWithID{
+			ID: SequencerOutputID,
+		},
+	}
+
+	return ret, nil
+}
