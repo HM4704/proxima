@@ -78,16 +78,6 @@ type QueryTxInclusionScore struct {
 	TxInclusionScore
 }
 
-type QueryRootRecords struct {
-	Error
-	RootRecords []multistate.RootRecordJSONAble
-}
-
-type QueryBranchDataMulti struct {
-	Error
-	BranchData []multistate.BranchDataJSONAble
-}
-
 type (
 	Error struct {
 		// empty string when no error
@@ -210,4 +200,26 @@ func CalcTxInclusionScore(inclusion *multistate.TxInclusion, thresholdNumerator,
 		ret.StrongScore = (numIncludedInDominating * 100) / numDominatingBranches
 	}
 	return ret
+}
+
+type SequencerData struct {
+	SequencerID    ledger.ChainID
+	LedgerCoverage uint64
+	SlotInflation  uint64
+	Supply         uint64
+	AmountOnChain  uint64
+}
+
+type SequencerStatistic {
+	active bool
+	wins   int
+	sumInflation int64
+}
+
+type SequencerStatistics struct {
+	sequStat map[string]SequencerStatistic
+}
+
+func GetSequencerStatistics(int nSlotsBack) SequencerStatistics {
+
 }
