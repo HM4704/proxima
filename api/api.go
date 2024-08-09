@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/lunfardo314/proxima/core/vertex"
+	"github.com/lunfardo314/proxima/global"
 	"github.com/lunfardo314/proxima/ledger"
 	"github.com/lunfardo314/proxima/multistate"
 )
@@ -17,6 +18,7 @@ const (
 	PathGetSyncInfo             = "/sync_info"
 	PathGetNodeInfo             = "/node_info"
 	PathGetPeersInfo            = "/peers_info"
+	PathGetSequencerStats       = "/sequ_stats"
 	PathGetLatestReliableBranch = "/get_latest_reliable_branch"
 )
 
@@ -119,13 +121,14 @@ type (
 	}
 
 	SequencerStatistic struct {
-		active       bool
-		wins         int
-		sumInflation int64
+		active       uint32 `json:"active"`
+		wins         uint32 `json:"wins"`
+		sumInflation uint64 `json:"sum_inflation"`
 	}
 
 	SequencerStatistics struct {
-		sequStat map[string]SequencerStatistic
+		Error
+		sequStat map[string]*SequencerStatistic `json:"sequ_stat,omitempty"`
 	}
 )
 
@@ -162,6 +165,33 @@ func CalcTxInclusionScore(inclusion *multistate.TxInclusion, thresholdNumerator,
 	return ret
 }
 
-func GetSequencerStatistics(nSlotsBack int) SequencerStatistics {
+func GetSequencerStatistics(stateStore global.StateStore, nSlotsBack int) *SequencerStatistics {
 
+	sequStat := &SequencerStatistics{
+		sequStat: make(map[string]*SequencerStatistic),
+	}
+
+	actSlot := multistate.FetchLatestSlot(stateStore)
+
+	for s := 0; s < nSlotsBack; s++ {
+		roots := multistate.FetchRootRecords(stateStore, actSlot)
+		ledgerCoverage := uint64(0)
+		var winSequ string
+		for _, rr := range roots {
+			sequId := rr.SequencerID.StringHex()
+			ss, exists := sequStat.sequStat[sequId]
+			if !exists {
+				ss = &SequencerStatistic{}
+				sequStat.sequStat[sequId] = ss
+			}
+			ss.active++
+			if ledgerCoverage < rr.LedgerCoverage {
+				winSequ = sequId
+			}
+		}
+		actSlot--
+		sequStat.sequStat[winSequ].wins++
+	}
+
+	return sequStat
 }
