@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/lunfardo314/proxima/core/vertex"
+	"github.com/lunfardo314/proxima/global"
 	"github.com/lunfardo314/proxima/ledger"
 	"github.com/lunfardo314/proxima/multistate"
 )
@@ -19,6 +20,7 @@ const (
 	PathGetSyncInfo             = "/sync_info"
 	PathGetNodeInfo             = "/node_info"
 	PathGetPeersInfo            = "/peers_info"
+	PathGetSequencerStats       = "/sequ_stats"
 	PathGetLatestReliableBranch = "/get_latest_reliable_branch"
 )
 
@@ -76,6 +78,16 @@ type TxInclusionScore struct {
 type QueryTxInclusionScore struct {
 	Error
 	TxInclusionScore
+}
+
+type QueryRootRecords struct {
+	Error
+	RootRecords []multistate.RootRecordJSONAble
+}
+
+type QueryBranchDataMulti struct {
+	Error
+	BranchData []multistate.BranchDataJSONAble
 }
 
 type (
@@ -169,6 +181,19 @@ type (
 	}
 )
 
+type (
+	SequencerStatistic struct {
+		active       uint32 `json:"active"`
+		wins         uint32 `json:"wins"`
+		sumInflation uint64 `json:"sum_inflation"`
+	}
+
+	SequencerStatistics struct {
+		Error
+		sequStat map[string]*SequencerStatistic `json:"sequ_stat,omitempty"`
+	}
+)
+
 const ErrGetOutputNotFound = "output not found"
 
 func CalcTxInclusionScore(inclusion *multistate.TxInclusion, thresholdNumerator, thresholdDenominator int) TxInclusionScore {
@@ -202,24 +227,33 @@ func CalcTxInclusionScore(inclusion *multistate.TxInclusion, thresholdNumerator,
 	return ret
 }
 
-type SequencerData struct {
-	SequencerID    ledger.ChainID
-	LedgerCoverage uint64
-	SlotInflation  uint64
-	Supply         uint64
-	AmountOnChain  uint64
-}
+func GetSequencerStatistics(stateStore global.StateStore, nSlotsBack int) *SequencerStatistics {
 
-type SequencerStatistic {
-	active bool
-	wins   int
-	sumInflation int64
-}
+	sequStat := &SequencerStatistics{
+		sequStat: make(map[string]*SequencerStatistic),
+	}
 
-type SequencerStatistics struct {
-	sequStat map[string]SequencerStatistic
-}
+	actSlot := multistate.FetchLatestSlot(stateStore)
 
-func GetSequencerStatistics(int nSlotsBack) SequencerStatistics {
+	for s := 0; s < nSlotsBack; s++ {
+		roots := multistate.FetchRootRecords(stateStore, actSlot)
+		ledgerCoverage := uint64(0)
+		var winSequ string
+		for _, rr := range roots {
+			sequId := rr.SequencerID.StringHex()
+			ss, exists := sequStat.sequStat[sequId]
+			if !exists {
+				ss = &SequencerStatistic{}
+				sequStat.sequStat[sequId] = ss
+			}
+			ss.active++
+			if ledgerCoverage < rr.LedgerCoverage {
+				winSequ = sequId
+			}
+		}
+		actSlot--
+		sequStat.sequStat[winSequ].wins++
+	}
 
+	return sequStat
 }

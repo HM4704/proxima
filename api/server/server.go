@@ -77,6 +77,8 @@ func (srv *Server) registerHandlers() {
 	http.HandleFunc(api.PathGetNodeInfo, srv.getNodeInfo)
 	// GET peers info from the node
 	http.HandleFunc(api.PathGetPeersInfo, srv.getPeersInfo)
+	// GET sequencer statistics from the node
+	http.HandleFunc(api.PathGetSequencerStats, srv.getSequencerStats)
 	// GET latest reliable branch '/get_latest_reliable_branch'
 	http.HandleFunc(api.PathGetLatestReliableBranch, srv.getLatestReliableBranch)
 }
@@ -437,6 +439,32 @@ func (srv *Server) queryTxStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respBin, err := json.MarshalIndent(resp, "", "  ")
+	if err != nil {
+		writeErr(w, err.Error())
+		return
+	}
+	_, err = w.Write(respBin)
+	util.AssertNoError(err)
+}
+
+func (srv *Server) getSequencerStats(w http.ResponseWriter, r *http.Request) {
+	srv.Tracef(TraceTag, "getSequencerStats invoked")
+
+	var err error
+	slotSpan := 1
+	lst, ok := r.URL.Query()["slots"]
+	if ok && len(lst) == 1 {
+		slotSpan, err = strconv.Atoi(lst[0])
+
+		if slotSpan < 1 || slotSpan > maxSlotsSpan {
+			writeErr(w, fmt.Sprintf("parameter 'slots' must be between 1 and %d", maxSlotsSpan))
+			return
+		}
+	}
+
+	sequStat := api.GetSequencerStatistics(srv.StateStore(), slotSpan)
+
+	respBin, err := json.MarshalIndent(sequStat, "", "  ")
 	if err != nil {
 		writeErr(w, err.Error())
 		return
