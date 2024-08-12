@@ -810,3 +810,38 @@ func (td *workflowTestData) startSequencersWithTimeout(maxSlots int, timeout ...
 		td.bootstrapSeq.Stop()
 	}()
 }
+
+func (td *workflowTestData) showSequStats(store global.StateStoreReader, nBack int, t *testing.T) {
+
+	mainBranches := multistate.FetchHeaviestBranchChainNSlotsBackNew(store, nBack)
+
+	type seqData struct {
+		numOccurrences int
+		onChainBalance uint64
+		name           string
+	}
+	bySeqID := make(map[ledger.ChainID]seqData)
+
+	for _, bd := range mainBranches {
+		sd := bySeqID[bd.SequencerID]
+		sd.numOccurrences++
+		if sd.onChainBalance == 0 {
+			sd.onChainBalance = bd.SequencerOutput.Output.Amount()
+		}
+		if sd.name == "" {
+			if md := ledger.ParseMilestoneData(bd.SequencerOutput.Output); md != nil {
+				sd.name = md.Name
+			}
+		}
+		bySeqID[bd.SequencerID] = sd
+	}
+	sorted := util.KeysSorted(bySeqID, func(k1, k2 ledger.ChainID) bool {
+		return bySeqID[k1].onChainBalance > bySeqID[k2].onChainBalance
+	})
+	t.Logf("stats by sequencer ID:")
+	for _, k := range sorted {
+		sd := bySeqID[k]
+		t.Logf("%10s %s  %8d (%2d%%)       %s", sd.name, k.StringShort(),
+			sd.numOccurrences, (100*sd.numOccurrences)/len(mainBranches), util.Th(sd.onChainBalance))
+	}
+}

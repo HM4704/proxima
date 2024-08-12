@@ -451,5 +451,7 @@ func TestNSequencersTransfer(t *testing.T) {
 			t.Logf("%s tx: %d, init: %s, final: %s", seqID.StringShort(), par.perChainID[seqID], util.Th(initBal), util.Th(balanceOnChain))
 			//require.EqualValues(t, int(initBal)+par.perChainID[seqID]*tagAlongFee, int(balanceOnChain))
 		}
+
+		testData.showSequStats(testData.wrk.StateStore(), 10, t)
 	})
 }

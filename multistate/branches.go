@@ -363,6 +363,47 @@ func FetchHeaviestBranchChainNSlotsBack(store global.StateStoreReader, nBack int
 	return ret
 }
 
+func FetchHeaviestBranchChainNSlotsBackNew(store global.StateStoreReader, nBack int) []*BranchData {
+
+	// First you start with branches on the latest healthy slot (healthy tips)
+	// 1. Locate latest healthy heaviest slot
+	latestHealthySlot := FindLatestHealthySlot(store, global.Fraction23)
+	//latestSlot := FetchLatestSlot(store)
+
+	// collect healthy tips
+	tipRoots := FetchRootRecords(store, latestHealthySlot)
+	util.Assertf(len(tipRoots) > 0, "len(tipRoots)>0")
+	tipBranches := FetchBranchDataMulti(store, tipRoots...)
+	tipIDs := make([]ledger.TransactionID, 0, len(tipBranches))
+	for _, tipBranchData := range tipBranches {
+		if tipBranchData.IsHealthy(global.FractionHealthyBranch) {
+			tipIDs = append(tipIDs, tipBranchData.Stem.ID.TransactionID())
+		}
+	}
+
+	mainBranches := make([]*BranchData, 0)
+
+	// iterating slots
+	for slot := latestHealthySlot; slot > latestHealthySlot-ledger.Slot(nBack); slot-- {
+		// fetch branches of the slot
+		branches := FetchBranchDataMulti(store, FetchRootRecords(store, slot)...)
+		// collect branches from the slot which are included into any of the tips
+		// In most cases it will be exactly one branch. It will be zero if slot is skipped
+		for _, branchData := range branches {
+			txid := branchData.Stem.ID.TransactionID()
+			// check every tip if it has transaction in the state
+			for i := range tipIDs {
+				if tipBranchHasTransaction(store, &tipIDs[i], &txid) {
+					mainBranches = append(mainBranches, branchData)
+					break
+				}
+			}
+		}
+	}
+
+	return mainBranches
+}
+
 // BranchIsDescendantOf returns true if predecessor txid is known in the descendents state
 func BranchIsDescendantOf(descendant, predecessor *ledger.TransactionID, getStore func() common.KVReader) bool {
 	util.Assertf(descendant.IsBranchTransaction(), "must be a branch ts")
@@ -384,6 +425,25 @@ func BranchIsDescendantOf(descendant, predecessor *ledger.TransactionID, getStor
 	}
 
 	return rdr.KnowsCommittedTransaction(predecessor)
+}
+
+func getStateReaderForTheBranchExt(store global.StateStoreReader, branch *ledger.TransactionID) (global.IndexedStateReader, *RootRecord) {
+	util.Assertf(branch != nil, "branch != nil")
+	util.Assertf(branch.IsBranchTransaction(), "GetStateReaderForTheBranchExt: branch tx expected. Got: %s", branch.StringShort())
+
+	rootRecord, found := FetchRootRecord(store, *branch)
+	if !found {
+		return nil, nil
+	}
+	IndexedStateReader := MustNewReadable(store, rootRecord.Root)
+	return IndexedStateReader, &rootRecord
+}
+
+func tipBranchHasTransaction(store global.StateStoreReader, branchID, txid *ledger.TransactionID) bool {
+	if rdr, _ := getStateReaderForTheBranchExt(store, branchID); !util.IsNil(rdr) {
+		return rdr.KnowsCommittedTransaction(txid)
+	}
+	return false
 }
 
 // MustSequencerOutputOfBranch fetches and returns sequencer output of the branch. Panics if fails for any reason

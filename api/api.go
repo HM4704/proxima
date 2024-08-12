@@ -20,7 +20,7 @@ const (
 	PathGetSyncInfo             = "/sync_info"
 	PathGetNodeInfo             = "/node_info"
 	PathGetPeersInfo            = "/peers_info"
-	PathGetSequencerStats       = "/sequ_stats"
+	PathGetSequencerStats       = "/sequencer_stats"
 	PathGetLatestReliableBranch = "/get_latest_reliable_branch"
 )
 
@@ -183,14 +183,16 @@ type (
 
 type (
 	SequencerStatistic struct {
-		active       uint32 `json:"active"`
-		wins         uint32 `json:"wins"`
-		sumInflation uint64 `json:"sum_inflation"`
+		Name string `json:"name"`
+		//Active         uint32 `json:"active"`
+		Wins uint32 `json:"wins"`
+		//SumInflation   uint64 `json:"sum_inflation"`
+		OnChainBalance uint64 `json:"on_chain_balance"`
 	}
 
 	SequencerStatistics struct {
 		Error
-		sequStat map[string]*SequencerStatistic `json:"sequ_stat,omitempty"`
+		SequStat map[string]*SequencerStatistic `json:"sequ_stat,omitempty"`
 	}
 )
 
@@ -230,29 +232,23 @@ func CalcTxInclusionScore(inclusion *multistate.TxInclusion, thresholdNumerator,
 func GetSequencerStatistics(stateStore global.StateStore, nSlotsBack int) *SequencerStatistics {
 
 	sequStat := &SequencerStatistics{
-		sequStat: make(map[string]*SequencerStatistic),
+		SequStat: make(map[string]*SequencerStatistic),
 	}
 
-	actSlot := multistate.FetchLatestSlot(stateStore)
+	mainBranches := multistate.FetchHeaviestBranchChainNSlotsBackNew(stateStore, 500)
 
-	for s := 0; s < nSlotsBack; s++ {
-		roots := multistate.FetchRootRecords(stateStore, actSlot)
-		ledgerCoverage := uint64(0)
-		var winSequ string
-		for _, rr := range roots {
-			sequId := rr.SequencerID.StringHex()
-			ss, exists := sequStat.sequStat[sequId]
-			if !exists {
-				ss = &SequencerStatistic{}
-				sequStat.sequStat[sequId] = ss
-			}
-			ss.active++
-			if ledgerCoverage < rr.LedgerCoverage {
-				winSequ = sequId
+	for _, bd := range mainBranches {
+		sd := sequStat.SequStat[bd.SequencerID.String()]
+		sd.Wins++
+		if sd.OnChainBalance == 0 {
+			sd.OnChainBalance = bd.SequencerOutput.Output.Amount()
+		}
+		if sd.Name == "" {
+			if md := ledger.ParseMilestoneData(bd.SequencerOutput.Output); md != nil {
+				sd.Name = md.Name
 			}
 		}
-		actSlot--
-		sequStat.sequStat[winSequ].wins++
+		sequStat.SequStat[bd.SequencerID.String()] = sd
 	}
 
 	return sequStat
