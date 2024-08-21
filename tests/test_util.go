@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lunfardo314/proxima/api"
 	"github.com/lunfardo314/proxima/core/attacher"
 	"github.com/lunfardo314/proxima/core/memdag"
 	"github.com/lunfardo314/proxima/core/txmetadata"
@@ -813,4 +814,16 @@ func (td *workflowTestData) startSequencersWithTimeout(maxSlots int, timeout ...
 		}
 		td.bootstrapSeq.Stop()
 	}()
+}
+
+func (td *workflowTestData) showSequStats(store global.StateStoreReader, nBack int, t *testing.T) {
+
+	sequStat := api.GetSequencerStatistics(store, nBack)
+
+	t.Logf("stats by sequencer ID:")
+
+	for k, v := range sequStat.SequStat {
+		t.Logf("%10s %s  %8d (%2d%%)       %s", v.Name, k,
+			v.Wins, (100*v.Wins)/uint32(len(sequStat.SequStat)), util.Th(v.OnChainBalance))
+	}
 }

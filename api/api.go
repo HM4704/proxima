@@ -121,14 +121,16 @@ type (
 	}
 
 	SequencerStatistic struct {
-		active       uint32 `json:"active"`
-		wins         uint32 `json:"wins"`
-		sumInflation uint64 `json:"sum_inflation"`
+		Name string `json:"name"`
+		//Active       uint32 `json:"active"`
+		Wins uint32 `json:"wins"`
+		//SumInflation   uint64 `json:"sum_inflation"`
+		OnChainBalance uint64 `json:"on_chain_balance"`
 	}
 
 	SequencerStatistics struct {
 		Error
-		sequStat map[string]*SequencerStatistic `json:"sequ_stat,omitempty"`
+		SequStat map[string]*SequencerStatistic `json:"sequ_stat,omitempty"`
 	}
 )
 
@@ -165,32 +167,31 @@ func CalcTxInclusionScore(inclusion *multistate.TxInclusion, thresholdNumerator,
 	return ret
 }
 
-func GetSequencerStatistics(stateStore global.StateStore, nSlotsBack int) *SequencerStatistics {
+func GetSequencerStatistics(stateStore global.StateStoreReader, nSlotsBack int) *SequencerStatistics {
 
 	sequStat := &SequencerStatistics{
-		sequStat: make(map[string]*SequencerStatistic),
+		SequStat: make(map[string]*SequencerStatistic),
 	}
 
-	actSlot, _ := multistate.FindLatestHealthySlot(stateStore, global.FractionHealthyBranch)
+	//actSlot, _ := multistate.FindLatestHealthySlot(stateStore, global.FractionHealthyBranch)
 
-	for s := 0; s < nSlotsBack; s++ {
-		roots := multistate.FetchRootRecords(stateStore, actSlot)
-		ledgerCoverage := uint64(0)
-		var winSequ string
-		for _, rr := range roots {
-			sequId := rr.SequencerID.StringHex()
-			ss, exists := sequStat.sequStat[sequId]
-			if !exists {
-				ss = &SequencerStatistic{}
-				sequStat.sequStat[sequId] = ss
-			}
-			ss.active++
-			if ledgerCoverage < rr.LedgerCoverage {
-				winSequ = sequId
+	mainBranches := multistate.FetchHeaviestBranchChainNSlotsBack(stateStore, -1)
+	for _, bd := range mainBranches {
+		sd, exists := sequStat.SequStat[bd.SequencerID.String()]
+		if !exists {
+			// Initialize the struct if it doesn't exist in the map
+			sd = &SequencerStatistic{}
+			sequStat.SequStat[bd.SequencerID.String()] = sd
+		}
+		sd.Wins++
+		if sd.OnChainBalance == 0 {
+			sd.OnChainBalance = bd.SequencerOutput.Output.Amount()
+		}
+		if sd.Name == "" {
+			if md := ledger.ParseMilestoneData(bd.SequencerOutput.Output); md != nil {
+				sd.Name = md.Name
 			}
 		}
-		actSlot--
-		sequStat.sequStat[winSequ].wins++
 	}
 
 	return sequStat
