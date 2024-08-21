@@ -363,6 +363,7 @@ func (srv *Server) submitTx(w http.ResponseWriter, r *http.Request) {
 }
 
 func (srv *Server) getSyncInfo(w http.ResponseWriter, r *http.Request) {
+	setHeader(w)
 	syncInfo := srv.GetSyncInfo()
 	respBin, err := json.MarshalIndent(syncInfo, "", "  ")
 	if err != nil {
@@ -374,6 +375,7 @@ func (srv *Server) getSyncInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (srv *Server) getPeersInfo(w http.ResponseWriter, r *http.Request) {
+	setHeader(w)
 	peersInfo := srv.GetPeersInfo()
 	respBin, err := json.MarshalIndent(peersInfo, "", "  ")
 	if err != nil {
@@ -385,6 +387,7 @@ func (srv *Server) getPeersInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (srv *Server) getNodeInfo(w http.ResponseWriter, r *http.Request) {
+	setHeader(w)
 	nodeInfo := srv.GetNodeInfo()
 	respBin, err := json.MarshalIndent(nodeInfo, "", "  ")
 	if err != nil {
@@ -448,7 +451,7 @@ func (srv *Server) queryTxStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (srv *Server) getSequencerStats(w http.ResponseWriter, r *http.Request) {
-	srv.Tracef(TraceTag, "getSequencerStats invoked")
+	setHeader(w)
 
 	var err error
 	slotSpan := 5
@@ -610,4 +613,9 @@ func RunOn(addr string, env Environment) {
 	srv.registerHandlers()
 	err := http.ListenAndServe(addr, nil)
 	util.AssertNoError(err)
+}
+
+func setHeader(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 }
