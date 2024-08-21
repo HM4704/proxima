@@ -384,7 +384,11 @@ func FetchHeaviestBranchChainNSlotsBackNew(store global.StateStoreReader, nBack 
 	mainBranches := make([]*BranchData, 0)
 
 	// iterating slots
-	for slot := latestHealthySlot; slot > latestHealthySlot-ledger.Slot(nBack); slot-- {
+	lastSlot := latestHealthySlot - ledger.Slot(nBack)
+	if latestHealthySlot < ledger.Slot(nBack) {
+		lastSlot = 0
+	}
+	for slot := latestHealthySlot; slot > lastSlot; slot-- {
 		// fetch branches of the slot
 		branches := FetchBranchDataMulti(store, FetchRootRecords(store, slot)...)
 		// collect branches from the slot which are included into any of the tips

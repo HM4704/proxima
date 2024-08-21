@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lunfardo314/proxima/api"
 	"github.com/lunfardo314/proxima/core/attacher"
 	"github.com/lunfardo314/proxima/core/memdag"
 	"github.com/lunfardo314/proxima/core/txmetadata"
@@ -813,35 +814,12 @@ func (td *workflowTestData) startSequencersWithTimeout(maxSlots int, timeout ...
 
 func (td *workflowTestData) showSequStats(store global.StateStoreReader, nBack int, t *testing.T) {
 
-	mainBranches := multistate.FetchHeaviestBranchChainNSlotsBackNew(store, nBack)
+	sequStat := api.GetSequencerStatistics(store, nBack)
 
-	type seqData struct {
-		numOccurrences int
-		onChainBalance uint64
-		name           string
-	}
-	bySeqID := make(map[ledger.ChainID]seqData)
-
-	for _, bd := range mainBranches {
-		sd := bySeqID[bd.SequencerID]
-		sd.numOccurrences++
-		if sd.onChainBalance == 0 {
-			sd.onChainBalance = bd.SequencerOutput.Output.Amount()
-		}
-		if sd.name == "" {
-			if md := ledger.ParseMilestoneData(bd.SequencerOutput.Output); md != nil {
-				sd.name = md.Name
-			}
-		}
-		bySeqID[bd.SequencerID] = sd
-	}
-	sorted := util.KeysSorted(bySeqID, func(k1, k2 ledger.ChainID) bool {
-		return bySeqID[k1].onChainBalance > bySeqID[k2].onChainBalance
-	})
 	t.Logf("stats by sequencer ID:")
-	for _, k := range sorted {
-		sd := bySeqID[k]
-		t.Logf("%10s %s  %8d (%2d%%)       %s", sd.name, k.StringShort(),
-			sd.numOccurrences, (100*sd.numOccurrences)/len(mainBranches), util.Th(sd.onChainBalance))
+
+	for k, v := range sequStat.SequStat {
+		t.Logf("%10s %s  %8d (%2d%%)       %s", v.Name, k,
+			v.Wins, (100*v.Wins)/uint32(len(sequStat.SequStat)), util.Th(v.OnChainBalance))
 	}
 }

@@ -229,7 +229,7 @@ func CalcTxInclusionScore(inclusion *multistate.TxInclusion, thresholdNumerator,
 	return ret
 }
 
-func GetSequencerStatistics(stateStore global.StateStore, nSlotsBack int) *SequencerStatistics {
+func GetSequencerStatistics(stateStore global.StateStoreReader, nSlotsBack int) *SequencerStatistics {
 
 	sequStat := &SequencerStatistics{
 		SequStat: make(map[string]*SequencerStatistic),
@@ -238,7 +238,12 @@ func GetSequencerStatistics(stateStore global.StateStore, nSlotsBack int) *Seque
 	mainBranches := multistate.FetchHeaviestBranchChainNSlotsBackNew(stateStore, 500)
 
 	for _, bd := range mainBranches {
-		sd := sequStat.SequStat[bd.SequencerID.String()]
+		sd, exists := sequStat.SequStat[bd.SequencerID.String()]
+		if !exists {
+			// Initialize the struct if it doesn't exist in the map
+			sd = &SequencerStatistic{}
+			sequStat.SequStat[bd.SequencerID.String()] = sd
+		}
 		sd.Wins++
 		if sd.OnChainBalance == 0 {
 			sd.OnChainBalance = bd.SequencerOutput.Output.Amount()
@@ -248,7 +253,6 @@ func GetSequencerStatistics(stateStore global.StateStore, nSlotsBack int) *Seque
 				sd.Name = md.Name
 			}
 		}
-		sequStat.SequStat[bd.SequencerID.String()] = sd
 	}
 
 	return sequStat
