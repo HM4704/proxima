@@ -24,72 +24,6 @@ const (
 	PathGetLatestReliableBranch = "/get_latest_reliable_branch"
 )
 
-type Error struct {
-	// empty string when no error
-	Error string `json:"error,omitempty"`
-}
-
-type LedgerID struct {
-	Error
-	// hex-encoded ledger id bytes
-	LedgerIDBytes string `json:"ledger_id_bytes,omitempty"`
-}
-
-// OutputList is returned by 'get_account_outputs'
-type OutputList struct {
-	Error
-	// key is hex-encoded outputID bytes
-	// value is hex-encoded raw output data
-	Outputs map[string]string `json:"outputs,omitempty"`
-}
-
-// ChainOutput is returned by 'get_chain_output'
-type ChainOutput struct {
-	Error
-	// hex-encoded outputID
-	OutputID string `json:"output_id,omitempty"`
-	// hex-encoded output data
-	OutputData string `json:"output_data,omitempty"`
-}
-
-// OutputData is returned by 'get_output'
-type OutputData struct {
-	Error
-	// hex-encoded output data
-	OutputData string `json:"output_data,omitempty"`
-	//Inclusion  []InclusionDataEncoded `json:"inclusion,omitempty"`
-}
-
-type QueryTxStatus struct {
-	Error
-	TxIDStatus vertex.TxIDStatusJSONAble       `json:"txid_status"`
-	Inclusion  *multistate.TxInclusionJSONAble `json:"inclusion,omitempty"`
-}
-
-type TxInclusionScore struct {
-	ThresholdNumerator   int `json:"threshold_numerator"`
-	ThresholdDenominator int `json:"threshold_denominator"`
-	LatestSlot           int `json:"latest_slot"`
-	EarliestSlot         int `json:"earliest_slot"`
-	StrongScore          int `json:"strong_score"`
-	WeakScore            int `json:"weak_score"`
-}
-
-type QueryTxInclusionScore struct {
-	Error
-	TxInclusionScore
-}
-
-type QueryRootRecords struct {
-	Error
-	RootRecords []multistate.RootRecordJSONAble
-}
-
-type QueryBranchDataMulti struct {
-	Error
-	BranchData []multistate.BranchDataJSONAble
-}
-
 type (
 	Error struct {
 		// empty string when no error
@@ -119,14 +53,6 @@ type (
 		OutputData string `json:"output_data,omitempty"`
 	}
 
-	// OutputData is returned by 'get_output'
-	OutputData struct {
-		Error
-		// hex-encoded output data
-		OutputData string `json:"output_data,omitempty"`
-		//Inclusion  []InclusionDataEncoded `json:"inclusion,omitempty"`
-	}
-
 	QueryTxStatus struct {
 		Error
 		TxIDStatus vertex.TxIDStatusJSONAble       `json:"txid_status"`
@@ -145,6 +71,24 @@ type (
 	QueryTxInclusionScore struct {
 		Error
 		TxInclusionScore
+	}
+
+	QueryRootRecords struct {
+		Error
+		RootRecords []multistate.RootRecordJSONAble
+	}
+
+	QueryBranchDataMulti struct {
+		Error
+		BranchData []multistate.BranchDataJSONAble
+	}
+
+	// OutputData is returned by 'get_output'
+	OutputData struct {
+		Error
+		// hex-encoded output data
+		OutputData string `json:"output_data,omitempty"`
+		//Inclusion  []InclusionDataEncoded `json:"inclusion,omitempty"`
 	}
 
 	SyncInfo struct {

@@ -367,7 +367,7 @@ func FetchHeaviestBranchChainNSlotsBackNew(store global.StateStoreReader, nBack 
 
 	// First you start with branches on the latest healthy slot (healthy tips)
 	// 1. Locate latest healthy heaviest slot
-	latestHealthySlot := FindLatestHealthySlot(store, global.Fraction23)
+	latestHealthySlot, _ := FindLatestHealthySlot(store, global.Fraction23)
 	//latestSlot := FetchLatestSlot(store)
 
 	// collect healthy tips
