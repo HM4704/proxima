@@ -26,6 +26,7 @@ type (
 		GetNodeInfo() *global.NodeInfo
 		GetSyncInfo() *api.SyncInfo
 		GetPeersInfo() *api.PeersInfo
+		StateStore() global.StateStore
 		HeaviestStateForLatestTimeSlot() multistate.SugaredStateReader
 		SubmitTxBytesFromAPI(txBytes []byte, trace bool)
 		QueryTxIDStatusJSONAble(txid *ledger.TransactionID) vertex.TxIDStatusJSONAble
@@ -363,12 +364,13 @@ func (srv *Server) queryTxStatus(w http.ResponseWriter, r *http.Request) {
 
 func (srv *Server) getSequencerStats(w http.ResponseWriter, r *http.Request) {
 	srv.Tracef(TraceTag, "getSequencerStats invoked")
+	setHeader(w)
 
 	var err error
 	slotSpan := 1
 	lst, ok := r.URL.Query()["slots"]
 	if ok && len(lst) == 1 {
-		slotSpan, err = strconv.Atoi(lst[0])
+		slotSpan, _ = strconv.Atoi(lst[0])
 
 		if slotSpan < 1 || slotSpan > maxSlotsSpan {
 			writeErr(w, fmt.Sprintf("parameter 'slots' must be between 1 and %d", maxSlotsSpan))

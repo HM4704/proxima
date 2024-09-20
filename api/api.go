@@ -171,7 +171,7 @@ func GetSequencerStatistics(stateStore global.StateStore, nSlotsBack int) *Seque
 		sequStat: make(map[string]*SequencerStatistic),
 	}
 
-	actSlot := multistate.FetchLatestSlot(stateStore)
+	actSlot, _ := multistate.FindLatestHealthySlot(stateStore, global.FractionHealthyBranch)
 
 	for s := 0; s < nSlotsBack; s++ {
 		roots := multistate.FetchRootRecords(stateStore, actSlot)
