@@ -429,6 +429,8 @@ func TestNSequencersTransfer(t *testing.T) {
 		time.Sleep(5 * time.Second)
 		testData.stopAndWait(3 * time.Second)
 
+		testData.showSequStats(testData.wrk.StateStore(), 10, t)
+
 		t.Logf("%s", testData.wrk.Info())
 		rdr = testData.wrk.HeaviestStateForLatestTimeSlot()
 		for _, txid := range par.spammedTxIDs {

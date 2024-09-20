@@ -18,7 +18,7 @@ const (
 	PathGetSyncInfo             = "/sync_info"
 	PathGetNodeInfo             = "/node_info"
 	PathGetPeersInfo            = "/peers_info"
-	PathGetSequencerStats       = "/sequ_stats"
+	PathGetSequencerStats       = "/sequencer_stats"
 	PathGetLatestReliableBranch = "/get_latest_reliable_branch"
 )
 
@@ -173,9 +173,10 @@ func GetSequencerStatistics(stateStore global.StateStoreReader, nSlotsBack int) 
 		SequStat: make(map[string]*SequencerStatistic),
 	}
 
-	//actSlot, _ := multistate.FindLatestHealthySlot(stateStore, global.FractionHealthyBranch)
+	latestSlot := multistate.FetchLatestCommittedSlot(stateStore)
+	nBack := int(min(100, latestSlot))
+	mainBranches := multistate.FetchHeaviestBranchChainNSlotsBack(stateStore, nBack)
 
-	mainBranches := multistate.FetchHeaviestBranchChainNSlotsBack(stateStore, -1)
 	for _, bd := range mainBranches {
 		sd, exists := sequStat.SequStat[bd.SequencerID.String()]
 		if !exists {

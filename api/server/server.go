@@ -363,17 +363,16 @@ func (srv *Server) queryTxStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (srv *Server) getSequencerStats(w http.ResponseWriter, r *http.Request) {
-	srv.Tracef(TraceTag, "getSequencerStats invoked")
 	setHeader(w)
 
 	var err error
-	slotSpan := 1
+	slotSpan := 5
 	lst, ok := r.URL.Query()["slots"]
 	if ok && len(lst) == 1 {
 		slotSpan, _ = strconv.Atoi(lst[0])
 
-		if slotSpan < 1 || slotSpan > maxSlotsSpan {
-			writeErr(w, fmt.Sprintf("parameter 'slots' must be between 1 and %d", maxSlotsSpan))
+		if slotSpan < 1 {
+			writeErr(w, "parameter 'slots' must be at least 1")
 			return
 		}
 	}
