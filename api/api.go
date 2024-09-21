@@ -173,7 +173,9 @@ func GetSequencerStatistics(stateStore global.StateStoreReader, nSlotsBack int) 
 		SequStat: make(map[string]*SequencerStatistic),
 	}
 
-	latestSlot := multistate.FetchLatestCommittedSlot(stateStore)
+	// func FindLatestReliableBranch(store global.StateStoreReader, fraction global.Fraction) *BranchData {
+
+	latestSlot, _ := multistate.FindLatestHealthySlot(stateStore, global.FractionHealthyBranch)
 	nBack := min(nSlotsBack, int(latestSlot))
 	mainBranches := multistate.FetchHeaviestBranchChainNSlotsBack(stateStore, nBack)
 
