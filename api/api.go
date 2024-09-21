@@ -173,29 +173,36 @@ func GetSequencerStatistics(stateStore global.StateStoreReader, nSlotsBack int) 
 		SequStat: make(map[string]*SequencerStatistic),
 	}
 
-	// func FindLatestReliableBranch(store global.StateStoreReader, fraction global.Fraction) *BranchData {
+	lrb := multistate.FindLatestReliableBranch(stateStore, global.FractionHealthyBranch)
+	if lrb == nil {
+		return sequStat
+	}
+	lrbID := lrb.Stem.ID.TransactionID()
+	counter := 0
+	nBack := min(nSlotsBack, int(lrbID.Slot()))
+	multistate.IterateBranchChainBack(stateStore, lrb, func(branchID *ledger.TransactionID, branch *multistate.BranchData) bool {
+		counter++
+		if counter > nBack {
+			return false
+		}
 
-	latestSlot, _ := multistate.FindLatestHealthySlot(stateStore, global.FractionHealthyBranch)
-	nBack := min(nSlotsBack, int(latestSlot))
-	mainBranches := multistate.FetchHeaviestBranchChainNSlotsBack(stateStore, nBack)
-
-	for _, bd := range mainBranches {
-		sd, exists := sequStat.SequStat[bd.SequencerID.String()]
+		sd, exists := sequStat.SequStat[branch.SequencerID.String()]
 		if !exists {
 			// Initialize the struct if it doesn't exist in the map
 			sd = &SequencerStatistic{}
-			sequStat.SequStat[bd.SequencerID.String()] = sd
+			sequStat.SequStat[branch.SequencerID.String()] = sd
 		}
 		sd.Wins++
 		if sd.OnChainBalance == 0 {
-			sd.OnChainBalance = bd.SequencerOutput.Output.Amount()
+			sd.OnChainBalance = branch.SequencerOutput.Output.Amount()
 		}
 		if sd.Name == "" {
-			if md := ledger.ParseMilestoneData(bd.SequencerOutput.Output); md != nil {
+			if md := ledger.ParseMilestoneData(branch.SequencerOutput.Output); md != nil {
 				sd.Name = md.Name
 			}
 		}
-	}
+		return true
+	})
 
 	return sequStat
 }
