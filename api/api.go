@@ -174,7 +174,7 @@ func GetSequencerStatistics(stateStore global.StateStoreReader, nSlotsBack int) 
 	}
 
 	latestSlot := multistate.FetchLatestCommittedSlot(stateStore)
-	nBack := int(min(100, latestSlot))
+	nBack := min(nSlotsBack, int(latestSlot))
 	mainBranches := multistate.FetchHeaviestBranchChainNSlotsBack(stateStore, nBack)
 
 	for _, bd := range mainBranches {
