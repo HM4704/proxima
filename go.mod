@@ -1,6 +1,8 @@
 module github.com/lunfardo314/proxima
 
-go 1.21.0
+go 1.22
+
+toolchain go1.23.1
 
 require (
 	github.com/dgraph-io/badger/v4 v4.2.0
@@ -60,6 +62,8 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/iotaledger/hive.go/constraints v0.0.0-20240517131232-748f1ce3a2d2 // indirect
+	github.com/iotaledger/hive.go/lo v0.0.0-20240520064018-c635e5900894 // indirect
 	github.com/ipfs/boxo v0.10.0 // indirect
 	github.com/ipfs/go-cid v0.4.1 // indirect
 	github.com/ipfs/go-datastore v0.6.0 // indirect
@@ -142,6 +146,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 // indirect
+	github.com/whyrusleeping/multiaddr-filter v0.0.0-20160516205228-e903e4adabd7 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/otel v1.24.0 // indirect
 	go.opentelemetry.io/otel/metric v1.24.0 // indirect
