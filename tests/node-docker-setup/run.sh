@@ -13,4 +13,14 @@ if [ ! -d "./data/config" ]; then
     mkdir ./data/config
 fi
 
+
+if [ ! -d "./data/prometheus" ]; then
+    mkdir ./data/prometheus
+    sudo chown -R 65532:65532 ./data/prometheus
+fi
+
+#if [ ! -d "./data/grafana" ]; then
+#    mkdir ./data/grafana
+#fi
+
 docker compose up

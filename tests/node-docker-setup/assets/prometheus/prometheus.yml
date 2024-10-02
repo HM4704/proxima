@@ -1,0 +1,7 @@
+scrape_configs:
+  - job_name: Proxima-Node
+    scrape_interval: 5s
+    scrape_timeout: 5s
+    static_configs:
+      - targets:
+          - 'Proxima-Node:14000'

@@ -21,6 +21,7 @@ RUN go mod download
 
 # Build the Go server program
 RUN go build
+#RUN go build -gcflags="all=-N -l"
 RUN cp ./proxima /app
 
 WORKDIR /scratch/proxi
