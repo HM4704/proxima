@@ -17,6 +17,7 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/discovery/routing"
 	p2putil "github.com/libp2p/go-libp2p/p2p/discovery/util"
 	p2pquic "github.com/libp2p/go-libp2p/p2p/transport/quic"
+	reuse "github.com/libp2p/go-libp2p/p2p/transport/quicreuse"
 	"github.com/lunfardo314/proxima/api"
 	"github.com/lunfardo314/proxima/core/txmetadata"
 	"github.com/lunfardo314/proxima/ledger"
@@ -46,6 +47,7 @@ func New(env environment, cfg *Config) (*Peers, error) {
 		libp2p.Identity(hostIDPrivateKey),
 
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1", cfg.HostPort)),
+		libp2p.QUICReuse(reuse.NewConnManager),
 		libp2p.Transport(p2pquic.NewTransport),
 		libp2p.NoSecurity,
 		libp2p.DisableRelay(),
