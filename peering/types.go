@@ -44,6 +44,8 @@ type (
 		ForcePullFromAllPeers bool
 		// timeout for heartbeat. If not set, used special defaultSendHeartbeatTimeout
 		SendTimeoutHeartbeat time.Duration
+		// use Quicreuse
+		UseQuicreuse bool
 	}
 
 	_multiaddr struct {
@@ -227,5 +229,6 @@ func readPeeringConfig() (*Config, error) {
 	if cfg.SendTimeoutHeartbeat == 0 {
 		cfg.SendTimeoutHeartbeat = defaultSendHeartbeatTimeout
 	}
+	cfg.UseQuicreuse = viper.GetBool("peering.use_quicreuse")
 	return cfg, nil
 }

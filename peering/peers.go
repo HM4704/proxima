@@ -43,16 +43,21 @@ func New(env environment, cfg *Config) (*Peers, error) {
 	if err != nil {
 		return nil, fmt.Errorf("wrong private key: %w", err)
 	}
-	lppHost, err := libp2p.New(
-		libp2p.Identity(hostIDPrivateKey),
 
+	options := []libp2p.Option{
+		libp2p.Identity(hostIDPrivateKey), // Your identity configuration
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1", cfg.HostPort)),
-		libp2p.QUICReuse(reuse.NewConnManager),
 		libp2p.Transport(p2pquic.NewTransport),
-		libp2p.NoSecurity,
+		libp2p.NoSecurity, // If you're using NoSecurity as in your code
 		libp2p.DisableRelay(),
 		libp2p.AddrsFactory(FilterAddresses(cfg.AllowLocalIPs)),
-	)
+	}
+
+	if cfg.UseQuicreuse {
+		options = append(options, libp2p.QUICReuse(reuse.NewConnManager))
+	}
+
+	lppHost, err := libp2p.New(options...)
 	if err != nil {
 		return nil, fmt.Errorf("unable create libp2p host: %w", err)
 	}
