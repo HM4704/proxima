@@ -45,10 +45,10 @@ func New(env environment, cfg *Config) (*Peers, error) {
 	}
 
 	options := []libp2p.Option{
-		libp2p.Identity(hostIDPrivateKey), // Your identity configuration
+		libp2p.Identity(hostIDPrivateKey),
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1", cfg.HostPort)),
 		libp2p.Transport(p2pquic.NewTransport),
-		libp2p.NoSecurity, // If you're using NoSecurity as in your code
+		libp2p.NoSecurity,
 		libp2p.DisableRelay(),
 		libp2p.AddrsFactory(FilterAddresses(cfg.AllowLocalIPs)),
 	}
