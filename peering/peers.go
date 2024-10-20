@@ -57,7 +57,7 @@ func New(env environment, cfg *Config) (*Peers, error) {
 		libp2p.NoSecurity,
 		libp2p.DisableRelay(),
 		libp2p.AddrsFactory(FilterAddresses(cfg.AllowLocalIPs)),
-		libp2p.QUICReuse(reuse.NewConnManager), //??
+		libp2p.QUICReuse(reuse.NewConnManager),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable create libp2p host: %w", err)
@@ -395,7 +395,6 @@ func (ps *Peers) _addPeer(addrInfo *peer.AddrInfo, name string, static bool) *Pe
 		defer ps.mutex.Unlock()
 		ps.peers[addrInfo.ID] = p
 	}()
-	//?? loop here infinitly if statis
 	return p
 }
 
@@ -409,10 +408,6 @@ func (ps *Peers) dropPeer(id peer.ID, reason string) {
 }
 
 func (ps *Peers) _dropPeer(p *Peer, reason string) {
-	//?? if p.isStatic {
-	// 	ps._addToBlacklist(p.id, reason)
-	// 	return
-	// }
 
 	why := ""
 	if len(reason) > 0 {
@@ -455,7 +450,7 @@ func (ps *Peers) restartBlacklistTime(id peer.ID) {
 
 func (ps *Peers) _addToCoolOfflist(id peer.ID) {
 	//ps.Log().Infof("[peering] node is connected to %d peer(s). Static: %d/%d, dynamic %d/%d, pull targets: %d (%v)",
-	ps.Log().Infof("[peering] ****** add to coooloff list peer %s", ShortPeerIDString(id))
+	ps.Log().Infof("[peering] ****** add to cooloff list peer %s", ShortPeerIDString(id))
 
 	ps.cooloffList[id] = time.Now().Add(cooloffTTL)
 }
