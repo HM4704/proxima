@@ -657,7 +657,7 @@ func (ps *Peers) sendMsgBytesOut(peerID peer.ID, protocolID protocol.ID, data []
 func (ps *Peers) sendMsgBytesOutMulti(peerIDs []peer.ID, protocolID protocol.ID, data []byte, timeout ...time.Duration) {
 	for _, id := range peerIDs {
 		idCopy := id
-		ps.sendMsgBytesOut(idCopy, protocolID, data, timeout...)
+		go ps.sendMsgBytesOut(idCopy, protocolID, data, timeout...)
 	}
 }
 
