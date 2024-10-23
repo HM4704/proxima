@@ -126,6 +126,7 @@ api:
     # server port
   port: {{.APIPort}}
 
+snapshot:
   enable: false
     # where to put snapshot files. Directory must exist at startup
   directory: snapshot
