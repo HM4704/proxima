@@ -1,15 +1,5 @@
 package node_cmd
 
-// DISABLED — `proxi node faucet` long-running server. Built on the
-// (now also disabled) glb.TransferFromED25519Wallet +
-// glb.MakeSendOutputTransaction wallet recipes, which use
-// ledger/txbuilder + the ledger.L() singleton. Registration was
-// already commented off in node_cmd.go; the body is commented off
-// here in lockstep with proxi/glb/wallet_recipes.go and the
-// matching client (faucet_get.go). Revive together when the faucet
-// is ported to the wasm-style txbuildercore pipeline.
-
-/*
 import (
 	"encoding/json"
 	"fmt"
@@ -24,14 +14,12 @@ import (
 	"github.com/lunfardo314/proxima/api/client"
 	"github.com/lunfardo314/proxima/ledger"
 	"github.com/lunfardo314/proxima/ledger/base"
+	"github.com/lunfardo314/proxima/ledger/txbuildercore"
 	"github.com/lunfardo314/proxima/proxi/glb"
-	"github.com/lunfardo314/proxima/sequencer/txbuilder_seq"
 	"github.com/lunfardo314/proxima/util"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
-
-// TODO implement receiving funds as delegated output
 
 const getFundsPath = "/"
 
@@ -47,15 +35,15 @@ type (
 	}
 
 	faucetServer struct {
-		cfg                   faucetServerConfig
-		walletData            glb.WalletData
-		mutex                 sync.Mutex
-		accountRequestList    map[string][]time.Time
-		addressRequestList    map[string][]time.Time
-		addressRequestCount   map[string]uint
-		client                *client.APIClient
-		withdrawTagAlongFee   uint64        // fee for withdrawing from own chain (fromChain mode)
-		transferTagAlongFee   uint64        // fee for transfer from wallet
+		cfg                 faucetServerConfig
+		walletData          glb.WalletData
+		mutex               sync.Mutex
+		accountRequestList  map[string][]time.Time
+		addressRequestList  map[string][]time.Time
+		addressRequestCount map[string]uint
+		client              *client.APIClient
+		withdrawTagAlongFee uint64        // fee for withdrawing from own chain (fromChain mode)
+		transferTagAlongFee uint64        // fee for transfer from wallet
 		transferTagAlongSeqID *base.ChainID // sequencer ID for wallet transfer tag-along
 	}
 )
@@ -76,8 +64,6 @@ func initFaucetServerCmd() *cobra.Command {
 }
 
 func runFaucetServerCmd(_ *cobra.Command, _ []string) {
-	glb.InitLedgerFromNode()
-	glb.Infof("\nstarting Proxima faucet server on the wallet..\n")
 	walletData := glb.GetWalletData()
 	glb.Assertf(walletData.Sequencer != nil, "can't get own sequencer id")
 
@@ -286,19 +272,53 @@ func (fct *faucetServer) redrawFromChain(targetLock ledger.Controller) (base.Tra
 		return base.TransactionID{}, fmt.Errorf("not enough tokens on the sequencer %s", glb.GetOwnSequencerID().String())
 	}
 
-	tagAlongOut := txbuilder_seq.NewWithdrawRequestOutput(*fct.walletData.Sequencer, fct.walletData.Account, fct.withdrawTagAlongFee, fct.cfg.amount, targetLock)
-	ts := ledger.TimeNow()
+	ts := glb.GetLedgerTimeNow()
 	if ts.IsSlotBoundary() {
 		ts = ts.AddTicks(12)
 	}
-	txBytes, txid, txString, err := glb.MakeSendOutputTransaction(tagAlongOut, fct.walletData.PrivateKey, ts)
+
+	lib := glb.GetTxLibrary()
+	walletHolderID := base.HolderIDFromED25519PrivateKey(fct.walletData.PrivateKey)
+	txb := txbuildercore.New(0)
+
+	// Consume the chain output
+	idx := txb.ConsumeOutput(o.Output.Bytes(), o.ID)
+	// Chain unlock params: input index of chain output (0)
+	txb.PutUnlockParams(idx, ledger.ConstraintIndexLock, ledger.NewChainLockUnlockParams(0))
+
+	// Produce the withdrawal output to target
+	targetOut, err := glb.BuildLockOutput(lib, fct.cfg.amount, targetLock)
 	if err != nil {
-		if txString != "" {
-			err = fmt.Errorf("error %v\n----------- failing tx ------------\n%s", err, txString)
-		}
 		return base.TransactionID{}, err
 	}
-	glb.Verbosef("---------------- withdraw tx -----------------\n%s", txString)
+	txb.ProduceOutput(targetOut.Bytes())
+
+	// Produce tag-along fee output
+	taOut, err := txbuildercore.NewTagAlongOutput(lib, fct.withdrawTagAlongFee, *fct.walletData.Sequencer, walletHolderID)
+	if err != nil {
+		return base.TransactionID{}, err
+	}
+	txb.ProduceOutput(taOut.Bytes())
+
+	// Remainder back to chain
+	remainder := o.Output.TokenBalance() - fct.cfg.amount - fct.withdrawTagAlongFee
+	if remainder > 0 {
+		chainRemainderOut, err := txbuildercore.NewChainLockOutput(lib, remainder, *fct.walletData.Sequencer)
+		if err != nil {
+			return base.TransactionID{}, err
+		}
+		txb.ProduceOutput(chainRemainderOut.Bytes())
+	}
+
+	txb.SetTimestamp(ts)
+	txb.ComputeInputCommitment()
+	txb.SignED25519(fct.walletData.PrivateKey)
+
+	txBytes := txb.Bytes()
+	txid, err := txbuildercore.TxIDFromBytes(txBytes)
+	if err != nil {
+		return base.TransactionID{}, err
+	}
 
 	err = clnt.SubmitTransaction(txBytes)
 	if err != nil {
@@ -308,18 +328,89 @@ func (fct *faucetServer) redrawFromChain(targetLock ledger.Controller) (base.Tra
 }
 
 func (fct *faucetServer) redrawFromAccount(targetLock ledger.Controller) (base.TransactionID, error) {
-	txCtx, err := glb.TransferFromED25519Wallet(glb.TransferFromED25519WalletParams{
-		WalletPrivateKey: fct.walletData.PrivateKey,
-		TagAlongSeqID:    fct.transferTagAlongSeqID,
-		TagAlongFee:      fct.transferTagAlongFee,
-		Amount:           fct.cfg.amount,
-		Target:           targetLock,
-	})
+	lib := glb.GetTxLibrary()
+	walletHolderID := base.HolderIDFromED25519PrivateKey(fct.walletData.PrivateKey)
 
+	// Fetch wallet outputs
+	res, err := fct.client.GetOutputsForControllerID(fct.walletData.Account.ControllerID(), client.GetOutputsParams{
+		LockType:  api.GetOutputsLockTypeSigLock,
+		Chained:   client.NonChainedOnly(),
+		SortBy:    api.GetOutputsSortByAmount,
+		SortOrder: api.GetOutputsSortOrderDesc,
+		ForAmount: fct.cfg.amount + fct.transferTagAlongFee,
+	})
 	if err != nil {
 		return base.TransactionID{}, err
 	}
-	return txCtx.ID(), nil
+	if res.AvailableAmount < fct.cfg.amount+fct.transferTagAlongFee {
+		return base.TransactionID{}, fmt.Errorf("not enough tokens: have %d, need %d", res.AvailableAmount, fct.cfg.amount+fct.transferTagAlongFee)
+	}
+	walletOutputs := res.Outputs
+
+	// Build the target output
+	targetOut, err := glb.BuildLockOutput(lib, fct.cfg.amount, targetLock)
+	if err != nil {
+		return base.TransactionID{}, err
+	}
+
+	// Build transaction using txbuildercore
+	txb := txbuildercore.New(0)
+
+	inTotal := uint64(0)
+	consumed := make([][]byte, 0, len(walletOutputs))
+	for i, in := range walletOutputs {
+		b := in.Output.Bytes()
+		txb.ConsumeOutput(b, in.ID)
+		consumed = append(consumed, b)
+		if i == 0 {
+			txb.PutSignatureUnlock(0)
+		} else {
+			if err = txb.PutUnlockReference(byte(i), ledger.ConstraintIndexLock, 0); err != nil {
+				return base.TransactionID{}, err
+			}
+		}
+		inTotal += in.Output.TokenBalance()
+	}
+	if inTotal < fct.cfg.amount+fct.transferTagAlongFee {
+		return base.TransactionID{}, fmt.Errorf("not enough balance: have %d, need %d",
+			inTotal, fct.cfg.amount+fct.transferTagAlongFee)
+	}
+
+	txb.ProduceOutput(targetOut.Bytes())
+
+	taOut, err := txbuildercore.NewTagAlongOutput(lib, fct.transferTagAlongFee, *fct.transferTagAlongSeqID, walletHolderID)
+	if err != nil {
+		return base.TransactionID{}, err
+	}
+	txb.ProduceOutput(taOut.Bytes())
+
+	if inTotal > fct.cfg.amount+fct.transferTagAlongFee {
+		remainderOut, rerr := txbuildercore.NewSigLockOutput(lib, inTotal-fct.cfg.amount-fct.transferTagAlongFee, walletHolderID)
+		if rerr != nil {
+			return base.TransactionID{}, rerr
+		}
+		txb.ProduceOutput(remainderOut.Bytes())
+	}
+
+	ts := glb.GetLedgerTimeNow()
+	if ts.IsSlotBoundary() {
+		ts = ts.AddTicks(12)
+	}
+	txb.SetTimestamp(ts)
+	txb.ComputeInputCommitment()
+	txb.SignED25519(fct.walletData.PrivateKey)
+
+	txBytes := txb.Bytes()
+	txid, err := txbuildercore.TxIDFromBytes(txBytes)
+	if err != nil {
+		return base.TransactionID{}, err
+	}
+
+	err = fct.client.SubmitTransaction(txBytes)
+	if err != nil {
+		return base.TransactionID{}, err
+	}
+	return txid, nil
 }
 
 func _trimToLastDay(lst []time.Time) ([]time.Time, int) {
@@ -416,4 +507,3 @@ func (fct *faucetServer) run() {
 	glb.Infof("\nrunning proxi faucet server on %s. Press Ctrl-C to stop..\n", sport)
 	glb.AssertNoError(http.ListenAndServe(sport, nil))
 }
-*/

@@ -1,12 +1,7 @@
 package node_cmd
 
-// DISABLED — `proxi node getfunds` client for the (now also disabled)
-// faucet server. Registration was already commented off in
-// node_cmd.go; the body is commented off here in lockstep with
-// faucet_srv.go and proxi/glb/wallet_recipes.go so the three move
-// together if/when the faucet is revived.
+// `proxi node getfunds` client for the faucet server.
 
-/*
 import (
 	"fmt"
 
@@ -38,7 +33,6 @@ func initGetFundsCmd() *cobra.Command {
 }
 
 func getFundsCmd(_ *cobra.Command, _ []string) {
-	glb.InitLedgerFromNode()
 	walletAccount := glb.GetWalletAccount()
 	faucetURL := fmt.Sprintf("http://%s:%d", viper.GetString("faucet.host"), viper.GetUint("faucet.port"))
 
@@ -59,4 +53,3 @@ func getFundsCmd(_ *cobra.Command, _ []string) {
 		glb.Infof("Funds requested successfully!")
 	}
 }
-*/
