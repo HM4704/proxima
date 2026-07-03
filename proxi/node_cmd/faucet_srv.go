@@ -10,13 +10,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lunfardo314/easyfl/easyfl_util"
 	"github.com/lunfardo314/proxima/api"
 	"github.com/lunfardo314/proxima/api/client"
 	"github.com/lunfardo314/proxima/ledger"
 	"github.com/lunfardo314/proxima/ledger/base"
 	"github.com/lunfardo314/proxima/ledger/txbuildercore"
 	"github.com/lunfardo314/proxima/proxi/glb"
+	"github.com/lunfardo314/proxima/sequencer/txbuilder_seq"
 	"github.com/lunfardo314/proxima/util"
+	"github.com/lunfardo314/proxima/util/smallkv"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -281,33 +284,55 @@ func (fct *faucetServer) redrawFromChain(targetLock ledger.Controller) (base.Tra
 	walletHolderID := base.HolderIDFromED25519PrivateKey(fct.walletData.PrivateKey)
 	txb := txbuildercore.New(0)
 
-	// Consume the chain output
-	idx := txb.ConsumeOutput(o.Output.Bytes(), o.ID)
-	// Chain unlock params: input index of chain output (0)
-	txb.PutUnlockParams(idx, ledger.ConstraintIndexLock, ledger.NewChainLockUnlockParams(0))
-
-	// Produce the withdrawal output to target
-	targetOut, err := glb.BuildLockOutput(lib, fct.cfg.amount, targetLock)
+	// Compose the withdraw sequencer-request output (tag-along request)
+	params := smallkv.New()
+	params.Set(txbuilder_seq.FieldWithdrawAmount, easyfl_util.TrimmedLeadingZeroUint64(fct.cfg.amount))
+	params.Set(txbuilder_seq.FieldWithdrawTarget, []byte(targetLock.Source()))
+	reqOut, err := lib.NewSequencerRequestOutput(
+		fct.withdrawTagAlongFee,
+		*fct.walletData.Sequencer,
+		walletHolderID,
+		txbuilder_seq.RequestCodeWithdrawFromSeq,
+		&params,
+	)
 	if err != nil {
 		return base.TransactionID{}, err
 	}
-	txb.ProduceOutput(targetOut.Bytes())
+	txb.ProduceOutput(reqOut.Bytes())
 
-	// Produce tag-along fee output
-	taOut, err := txbuildercore.NewTagAlongOutput(lib, fct.withdrawTagAlongFee, *fct.walletData.Sequencer, walletHolderID)
+	// Remainder back to wallet (the wallet pays the fee from its own outputs)
+	walletOutputs, _, amountInWallet, err := clnt.GetTransferableOutputs(fct.walletData.Account, 255)
 	if err != nil {
 		return base.TransactionID{}, err
 	}
-	txb.ProduceOutput(taOut.Bytes())
+	if len(walletOutputs) == 0 {
+		return base.TransactionID{}, fmt.Errorf("wallet has no outputs to pay the tag-along fee")
+	}
+	if amountInWallet < fct.withdrawTagAlongFee {
+		return base.TransactionID{}, fmt.Errorf("not enough balance to pay tag-along fee: have %d, need %d", amountInWallet, fct.withdrawTagAlongFee)
+	}
 
-	// Remainder back to chain
-	remainder := o.Output.TokenBalance() - fct.cfg.amount - fct.withdrawTagAlongFee
-	if remainder > 0 {
-		chainRemainderOut, err := txbuildercore.NewChainLockOutput(lib, remainder, *fct.walletData.Sequencer)
+	inTotal := uint64(0)
+	for i, in := range walletOutputs {
+		b := in.Output.Bytes()
+		txb.ConsumeOutput(b, in.ID)
+		if i == 0 {
+			txb.PutSignatureUnlock(0)
+		} else {
+			if err = txb.PutUnlockReference(byte(i), ledger.ConstraintIndexLock, 0); err != nil {
+				return base.TransactionID{}, err
+			}
+		}
+		inTotal += in.Output.TokenBalance()
+	}
+
+	// Remainder back to wallet
+	if inTotal > fct.withdrawTagAlongFee {
+		remainderOut, err := txbuildercore.NewSigLockOutput(lib, inTotal-fct.withdrawTagAlongFee, walletHolderID)
 		if err != nil {
 			return base.TransactionID{}, err
 		}
-		txb.ProduceOutput(chainRemainderOut.Bytes())
+		txb.ProduceOutput(remainderOut.Bytes())
 	}
 
 	txb.SetTimestamp(ts)
