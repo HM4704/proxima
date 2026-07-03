@@ -56,7 +56,8 @@ faucet:
     host:  172.16.238.10
     use_wallet_as_source: false
     port:	9500
-    amount: 1000000
-    max_requests_per_hour: 100
+    amount: 10000000
+    max_requests_per_hour: 1000
     max_requests_per_day: 1000
+    max_requests_per_addr: 1000
     bottom: 1000000000

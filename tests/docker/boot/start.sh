@@ -72,6 +72,12 @@ else # initialized
     PROXIMA_PID=$!
 fi
 
+if [ "$NODE_NAME" = "boot" ]; then
+    # start the faucet server
+    sleep 5
+    ./proxi node faucet &
+fi
+
 # For the initialized branch (first boot), proxima is also running
 # so we need the same trap there too -- see note below
 trap 'echo "Shutting down proxima $PROXIMA_PID..."; kill -INT $PROXIMA_PID; wait $PROXIMA_PID; exit 0' INT TERM
